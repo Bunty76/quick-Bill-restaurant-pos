@@ -151,12 +151,18 @@ router.get("/menu", async (req, res) => {
 // @desc    Admin adds a new menu item for a specific user
 // @route   POST /api/admin/menu
 router.post("/menu", async (req, res) => {
-  const { name, price, imageUrl, userId } = req.body;
+  const { name, variants, imageUrl, userId } = req.body;
   try {
-    if (!name || !price || !imageUrl || !userId) {
+    if (!name || !imageUrl || !userId) {
       return res
         .status(400)
-        .json({ message: "Name, price, image URL, and user ID are required." });
+        .json({ message: "Name, image URL, and user ID are required." });
+    }
+    // Validate variants array — must have at least one entry with name and price
+    if (!variants || !Array.isArray(variants) || variants.length === 0) {
+      return res
+        .status(400)
+        .json({ message: "At least one price variant (with name and price) is required." });
     }
     const userExists = await User.findById(userId);
     if (!userExists) {
@@ -165,9 +171,6 @@ router.post("/menu", async (req, res) => {
         .json({ message: "User to assign item to not found." });
     }
 
-    // FIX: The schema expects 'variants', not 'price'. Create a default variant.
-    const variants = [{ name: "Default", price: parseFloat(price) }];
-
     const newItem = new MenuItem({ name, variants, imageUrl, userId });
     const menuItem = await newItem.save();
     res.status(201).json(menuItem);
@@ -175,7 +178,7 @@ router.post("/menu", async (req, res) => {
     console.error(err.message);
     if (err.name === "ValidationError") {
       return res.status(400).json({
-        msg: Object.values(err.errors)
+        message: Object.values(err.errors)
           .map((val) => val.message)
           .join(", "),
       });
