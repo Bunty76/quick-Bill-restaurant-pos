@@ -18,17 +18,59 @@ connectDB();
 
 const app = express();
 
+// CORS configuration for local development and production deployments
+const defaultOrigins = [
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'http://localhost:4173',
+  'http://127.0.0.1:5173',
+  'https://quickbill-restaurant-pos.vercel.app',
+  'https://quick-bill-restaurant-pos-frontend.vercel.app'
+];
+
+const envOrigins = process.env.CORS_ORIGIN
+  ? process.env.CORS_ORIGIN.split(',').map((origin) => origin.trim().replace(/\/$/, ''))
+  : [];
+
+const allowedOrigins = [...new Set([...defaultOrigins, ...envOrigins])];
+
+const corsOptions = {
+  origin: (origin, callback) => {
+    // Allow non-browser requests (curl, Postman, server-to-server) or same-origin
+    if (!origin) return callback(null, true);
+
+    const normalizedOrigin = origin.replace(/\/$/, '');
+
+    // Allow in development mode or if wildcard is explicitly set
+    if (process.env.NODE_ENV !== 'production' || allowedOrigins.includes('*')) {
+      return callback(null, true);
+    }
+
+    // Match configured origins, Vercel deployments, or Render domains
+    const isAllowed =
+      allowedOrigins.includes(normalizedOrigin) ||
+      normalizedOrigin.endsWith('.vercel.app') ||
+      normalizedOrigin.endsWith('.onrender.com');
+
+    if (isAllowed) {
+      return callback(null, true);
+    }
+
+    console.warn(`⚠️ [CORS] Blocked request from origin: ${origin}`);
+    return callback(null, false);
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+  optionsSuccessStatus: 200,
+};
+
+// Mount CORS before body parser to handle all requests including OPTIONS preflight
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
+
 // Body parser
 app.use(express.json());
-
-// Enable CORS
-app.use(
-  cors({
-    origin: ["http://localhost:5173", "https://quickbill-restaurant-pos.vercel.app"], // your React app URLs
-    methods: ["GET", "POST", "PUT", "DELETE"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-  })
-);
 
 // Seed admin user
 const seedAdminUser = async () => {
